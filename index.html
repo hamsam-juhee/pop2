@@ -3,62 +3,323 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>우리 동네 인구</title>
+<title>우리 동네 인구 피라미드</title>
+<!-- Chart.js 라이브러리 추가 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%);
+    --glass-bg: rgba(255, 255, 255, 0.07);
+    --glass-border: rgba(255, 255, 255, 0.15);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --accent-male: #6366f1;
+    --accent-female: #c084fc;
+  }
+
+  body {
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+    background: var(--bg-gradient);
+    background-attachment: fixed;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--text-primary);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  .glass-card {
+    width: 100%;
+    max-width: 800px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 30px;
+    box-shadow: var(--glass-shadow);
+  }
+
+  h1 {
+    margin-top: 0;
+    font-size: 1.8rem;
+    font-weight: 700;
+    text-align: center;
+    background: linear-gradient(to right, #a5b4fc, #e879f9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 20px;
+  }
+
+  .search-box {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    outline: none;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    margin-bottom: 25px;
+  }
+
+  .search-box:focus {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: #818cf8;
+    box-shadow: 0 0 15px rgba(129, 140, 248, 0.3);
+  }
+
+  .search-box::placeholder {
+    color: #94a3b8;
+  }
+
+  #app-info {
+    text-align: center;
+    margin-bottom: 25px;
+  }
+
+  .region-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .stats-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    flex-wrap: wrap;
+  }
+
+  .stat-badge {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .stat-badge.male { color: #a5b4fc; }
+  .stat-badge.female { color: #f0abfc; }
+
+  .chart-container {
+    position: relative;
+    width: 100%;
+    height: 450px;
+  }
+
+  #loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+  }
+</style>
 </head>
 <body>
-  <h1>우리 동네 인구</h1>
-  <input id="q" list="regions" placeholder="동네 이름 입력 (예: 서울특별시 종로구)" style="width:100%;max-width:360px;padding:8px;font-size:16px;">
+
+<div class="glass-card">
+  <h1>우리 동네 인구 피라미드</h1>
+  <input id="q" list="regions" class="search-box" placeholder="동네 이름 입력 (예: 서울특별시 종로구)">
   <datalist id="regions"></datalist>
-  <div id="app">데이터 불러오는 중…</div>
+  
+  <div id="app-info">
+    <div id="loading">데이터 불러오는 중…</div>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="pyramidChart"></canvas>
+  </div>
+</div>
 
 <script>
-const 기본지역 = "서울특별시 종로구"; // ← 보고 싶은 지역으로 바꿔도 돼요
+const 기본지역 = "서울특별시 종로구";
 const DATA_URL = "https://raw.githubusercontent.com/greatsong/modudata/main/data/population_latest.csv";
 
 let HEADER = [], INDEX = {};
-const num = s => parseInt(String(s).replace(/[^0-9-]/g,''),10) || 0;   // 따옴표·천단위 쉼표 제거
-// 따옴표로 감싼 CSV 한 줄 파싱 (값 안에 쉼표가 있어 단순 split 불가)
-function parseCSV(line){const o=[];let c='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){c+='"';i++;}else q=!q;}else if(ch===','&&!q){o.push(c);c='';}else c+=ch;}o.push(c);return o;}
-const cleanName = s => s.replace(/\s*\(\d+\)\s*$/,'').replace(/\s+/g,' ').trim();  // "서울…종로구 (1111…)" → "서울…종로구"
+let pyramidChart = null;
 
-// 한 지역의 남/여/총 인구 합계
-function sums(cells){
-  let male=0, female=0;
-  for(let i=1;i<HEADER.length;i++){
-    if(!/_(\d+)세/.test(HEADER[i])) continue;   // 나이 열만(총인구수·연령구간 제외)
-    const v = num(cells[i]);
-    if(HEADER[i].includes('_남_')) male+=v;
-    else if(HEADER[i].includes('_여_')) female+=v;   // _계_ 무시
+const num = s => parseInt(String(s).replace(/[^0-9-]/g,''), 10) || 0;
+const cleanName = s => s.replace(/\s*\(\d+\)\s*$/,'').replace(/\s+/g,' ').trim();
+
+function parseCSV(line){
+  const o=[]; let c='', q=false;
+  for(let i=0; i<line.length; i++){
+    const ch=line[i];
+    if(ch==='"'){ if(q && line[i+1]==='"'){ c+='"'; i++; } else q=!q; }
+    else if(ch===',' && !q){ o.push(c); c=''; }
+    else c+=ch;
   }
-  return { male, female, total: male+female };
+  o.push(c); return o;
+}
+
+// 연령별 데이터를 추출하는 함수
+function getAgeData(cells) {
+  const ages = [];
+  const maleData = [];
+  const femaleData = [];
+  
+  for(let i = 1; i < HEADER.length; i++) {
+    // '남_0~9세' 또는 '남_100세 이상' 등의 형태 파싱
+    if(HEADER[i].includes('_남_') && HEADER[i].includes('세')) {
+      const ageLabel = HEADER[i].split('_남_')[1];
+      const femaleHeaderIndex = HEADER.findIndex(h => h.endsWith('_여_' + ageLabel));
+      
+      const mVal = num(cells[i]);
+      const fVal = femaleHeaderIndex !== -1 ? num(cells[femaleHeaderIndex]) : 0;
+      
+      ages.push(ageLabel);
+      maleData.push(mVal);
+      femaleData.push(fVal);
+    }
+  }
+  return { ages, maleData, femaleData };
 }
 
 function show(name){
   const cells = INDEX[name];
-  if(!cells){ document.getElementById('app').textContent = '그 지역을 못 찾았어요. 목록에서 골라보세요.'; return; }
-  const {male,female,total} = sums(cells);
-  document.getElementById('app').innerHTML =
-    `<h2>${name}</h2>
-     <p>총인구: <b>${total.toLocaleString()}</b>명</p>
-     <p>남자 ${male.toLocaleString()}명 · 여자 ${female.toLocaleString()}명</p>`;
+  const infoEl = document.getElementById('app-info');
+  
+  if(!cells){ 
+    infoEl.innerHTML = '<p>그 지역을 못 찾았어요. 목록에서 골라보세요.</p>'; 
+    return; 
+  }
+
+  const { ages, maleData, femaleData } = getAgeData(cells);
+  
+  const totalMale = maleData.reduce((a, b) => a + b, 0);
+  const totalFemale = femaleData.reduce((a, b) => a + b, 0);
+  const total = totalMale + totalFemale;
+
+  infoEl.innerHTML = `
+    <div class="region-title">${name}</div>
+    <div class="stats-container">
+      <span class="stat-badge">총 ${total.toLocaleString()}명</span>
+      <span class="stat-badge male">남 ${totalMale.toLocaleString()}명</span>
+      <span class="stat-badge female">여 ${totalFemale.toLocaleString()}명</span>
+    </div>
+  `;
+
+  renderPyramidChart(ages, maleData, femaleData);
+}
+
+function renderPyramidChart(labels, maleData, femaleData) {
+  const ctx = document.getElementById('pyramidChart').getContext('2d');
+  
+  if (pyramidChart) {
+    pyramidChart.destroy(); // 기존 차트 폐기 후 새로 세팅
+  }
+
+  // 보라-블루 그라데이션 생성 (남성)
+  const maleGradient = ctx.createLinearGradient(0, 0, 400, 0);
+  maleGradient.addColorStop(0, 'rgba(99, 102, 241, 0.85)'); // Indigo
+  maleGradient.addColorStop(1, 'rgba(59, 130, 246, 0.4)');  // Blue
+
+  // 핑크-보라 그라데이션 생성 (여성)
+  const femaleGradient = ctx.createLinearGradient(0, 0, 400, 0);
+  femaleGradient.addColorStop(0, 'rgba(232, 121, 249, 0.4)'); // Pink
+  femaleGradient.addColorStop(1, 'rgba(192, 132, 252, 0.85)'); // Purple
+
+  pyramidChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: '남성',
+          // 피라미드 좌측 표현을 위해 음수 처리
+          data: maleData.map(v => -v),
+          backgroundColor: maleGradient,
+          borderColor: 'rgba(129, 140, 248, 0.8)',
+          borderWidth: 1,
+          borderRadius: 4,
+          borderSkipped: false
+        },
+        {
+          label: '여성',
+          data: femaleData,
+          backgroundColor: femaleGradient,
+          borderColor: 'rgba(232, 121, 249, 0.8)',
+          borderWidth: 1,
+          borderRadius: 4,
+          borderSkipped: false
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y', // 가로형 바 차트
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          stacked: false,
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#cbd5e1',
+            // 음수를 양수로 보이게 변환
+            callback: value => `${Math.abs(value).toLocaleString()}명`
+          }
+        },
+        y: {
+          stacked: true,
+          grid: { display: false },
+          ticks: { color: '#cbd5e1', font: { size: 11 } }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: { color: '#f8fafc', font: { size: 13 } }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.85)',
+          titleColor: '#f8fafc',
+          bodyColor: '#cbd5e1',
+          borderColor: 'rgba(255, 255, 255, 0.2)',
+          borderWidth: 1,
+          padding: 12,
+          backdropFilter: 'blur(8px)',
+          callbacks: {
+            // 툴팁에서도 음수를 양수로 표현
+            label: function(context) {
+              let value = Math.abs(context.raw);
+              return `${context.dataset.label}: ${value.toLocaleString()}명`;
+            }
+          }
+        }
+      }
+    }
+  });
 }
 
 (async ()=>{
   const buf = await (await fetch(DATA_URL)).arrayBuffer();
-  const text = new TextDecoder('euc-kr').decode(buf);   // 행안부 원본은 cp949 인코딩
+  const text = new TextDecoder('euc-kr').decode(buf);
   const lines = text.trim().split(/\r?\n/);
-  HEADER = parseCSV(lines[0]);                // 첫 줄은 열 이름
+  HEADER = parseCSV(lines[0]);
+  
   const dl = document.getElementById('regions');
-  lines.slice(1).forEach(line=>{
-    const cells = parseCSV(line); const name = cleanName(cells[0]);
-    INDEX[name] = cells;                      // 지역명으로 찾을 수 있게 저장
-    const o = document.createElement('option'); o.value = name; dl.appendChild(o);
+  lines.slice(1).forEach(line => {
+    const cells = parseCSV(line); 
+    const name = cleanName(cells[0]);
+    INDEX[name] = cells;
+    const o = document.createElement('option'); 
+    o.value = name; 
+    dl.appendChild(o);
   });
+  
   const q = document.getElementById('q');
   q.value = 기본지역;
-  q.addEventListener('input', ()=>{ if(INDEX[q.value]) show(q.value); });
+  q.addEventListener('input', () => { if(INDEX[q.value]) show(q.value); });
   show(기본지역);
-})().catch(e=>document.getElementById('app').textContent = '⚠️ ' + e.message);
+})().catch(e => {
+  document.getElementById('app-info').textContent = '⚠️ ' + e.message;
+});
 </script>
 </body>
 </html>
