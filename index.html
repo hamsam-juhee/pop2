@@ -3,134 +3,748 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>우리 동네 인구 구조 🏘️</title>
+<title>우리 동네 인구 구조 & 비교 (군집 분석 추가) 🏘️</title>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 <style>
-  :root{
-    --bg:#FFFDF7; --card:#FFF6E0; --border:#F0E2BC;
-    --accent:#E8930C; --gold:#F4B400; --text:#3A2E1A; --muted:#9A8B6A; --shadow:rgba(180,140,20,.18);
+  :root {
+    --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #2e1065 100%);
+    --glass-bg: rgba(255, 255, 255, 0.06);
+    --glass-card-bg: rgba(255, 255, 255, 0.08);
+    --glass-border: rgba(255, 255, 255, 0.15);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    
+    --text-main: #f8fafc;
+    --text-muted: #cbd5e1;
+    --accent-a: #6366f1; /* 기준지역: Indigo/Blue */
+    --accent-b: #f43f5e; /* 비교지역: Rose/Pink */
   }
-  body[data-theme="mint"]{--bg:#F4FFFB;--card:#E7FBF3;--border:#C7F0E0;--accent:#0EA371;--gold:#34D399;--text:#0F3D2E;--muted:#6FA992;--shadow:rgba(16,185,129,.18);}
-  body[data-theme="berry"]{--bg:#FFF7FA;--card:#FFE9F1;--border:#FBD5E5;--accent:#E23C86;--gold:#F9A8D4;--text:#4A1D33;--muted:#B98098;--shadow:rgba(236,72,153,.18);}
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);transition:background .3s;
-    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;}
-  .wrap{max-width:600px;margin:0 auto;padding:24px 18px 48px;}
-  .themes{display:flex;gap:6px;justify-content:flex-end;margin-bottom:8px;}
-  .themes button{border:1px solid var(--border);background:#fff;color:var(--text);border-radius:99px;
-    padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
-  .themes button.on{background:var(--accent);color:#fff;border-color:var(--accent);}
-  h1{font-size:1.6rem;font-weight:800;letter-spacing:-.02em;margin:.1rem 0;}
-  h1 .a{color:var(--accent);}
-  .under{width:60px;height:4px;border-radius:99px;margin:.4rem 0 .6rem;
-    background:linear-gradient(90deg,var(--gold),var(--accent));}
-  input#q{width:100%;font-size:1rem;padding:.6rem .7rem;border:1px solid var(--border);
-    border-radius:.7rem;background:#fff;color:var(--text);margin-bottom:14px;}
-  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;
-    box-shadow:0 1px 4px var(--shadow);}
-  .card .k{font-size:.74rem;color:var(--muted);font-weight:700;}
-  .card .v{font-size:1.15rem;font-weight:800;color:var(--accent);margin-top:2px;}
-  #py{width:100%;}
-  .foot{color:var(--muted);font-size:.8rem;margin-top:14px;}
-  @media(max-width:560px){.cards{grid-template-columns:repeat(2,1fr);}}
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-gradient);
+    background-attachment: fixed;
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 24px 18px 48px;
+  }
+
+  h1 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    text-align: center;
+    margin: 0.5rem 0 0.2rem;
+    background: linear-gradient(to right, #a5b4fc, #f472b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .under {
+    width: 60px;
+    height: 4px;
+    border-radius: 99px;
+    margin: 0.4rem auto 1.2rem;
+    background: linear-gradient(90deg, #818cf8, #f472b6);
+  }
+
+  /* 글래스모피즘 공통 카드 스타일 */
+  .glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: var(--glass-shadow);
+    margin-bottom: 16px;
+  }
+
+  /* 컨트롤 & 입력창 */
+  .mctl {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    font-size: 0.88rem;
+  }
+  
+  .mctl select, .mctl input, input#qA, input#qB {
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-main);
+    outline: none;
+    transition: all 0.2s ease;
+  }
+
+  .mctl select option { background: #1e1b4b; color: #fff; }
+  .mctl select:focus, .mctl input:focus, input#qA:focus, input#qB:focus {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: #818cf8;
+    box-shadow: 0 0 10px rgba(129, 140, 248, 0.4);
+  }
+
+  .mctl input[type="number"] { width: 65px; }
+
+  /* 지도 스타일 */
+  .mapbox { position: relative; }
+  #map { width: 100%; height: auto; display: block; }
+  #map path { stroke: rgba(255, 255, 255, 0.2); stroke-width: 0.4; cursor: pointer; transition: fill 0.2s, stroke 0.2s; }
+  #map path.hl { stroke: #fff; stroke-width: 1.5; filter: brightness(1.25); }
+  #map path.selected-a { stroke: var(--accent-a); stroke-width: 2.2; filter: drop-shadow(0 0 6px var(--accent-a)); }
+  #map path.selected-b { stroke: var(--accent-b); stroke-width: 2.2; filter: drop-shadow(0 0 6px var(--accent-b)); }
+
+  .lgd {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(8px);
+    border-radius: 8px;
+    padding: 6px 12px;
+  }
+  .lgd .bar {
+    width: 80px;
+    height: 8px;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #312e81, #e11d48);
+  }
+
+  /* 군집 범례용 전용 칩 */
+  .cluster-legend-item { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; }
+  .cluster-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  #tip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(10px);
+    white-space: nowrap;
+    z-index: 10;
+    color: var(--text-main);
+  }
+
+  .rank { font-size: 0.8rem; margin-top: 10px; color: var(--text-muted); }
+  .rank button {
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    border-radius: 99px;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    margin: 2px 3px 4px 0;
+    transition: all 0.2s;
+  }
+  .rank button:hover { background: rgba(255, 255, 255, 0.2); border-color: #a5b4fc; }
+
+  /* 검색 및 비교 모드 셀렉터 */
+  .region-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .select-box {
+    background: var(--glass-card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 12px;
+  }
+  .select-box.a { border-left: 4px solid var(--accent-a); }
+  .select-box.b { border-left: 4px solid var(--accent-b); }
+  .select-box label { display: block; font-size: 0.78rem; font-weight: 700; margin-bottom: 6px; }
+  .select-box.a label { color: #a5b4fc; }
+  .select-box.b label { color: #fda4af; }
+  .select-box input { width: 100%; }
+
+  /* 카드리스트 */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .card {
+    background: var(--glass-card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .card .k { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
+  .card .v-container { display: flex; flex-direction: column; gap: 2px; }
+  .card .val-a { font-size: 1.05rem; font-weight: 800; color: #a5b4fc; }
+  .card .val-b { font-size: 0.95rem; font-weight: 700; color: #fda4af; }
+
+  /* 군집 정보 설명 카드 */
+  .cluster-info-card {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(129, 140, 248, 0.3);
+    border-radius: 16px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+  }
+  .cluster-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+  .cluster-same-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .cluster-same-chip {
+    font-size: 0.75rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    padding: 3px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  .cluster-same-chip:hover { background: rgba(255, 255, 255, 0.2); }
+
+  #py { width: 100%; }
+  .foot { color: var(--text-muted); font-size: 0.8rem; text-align: center; margin-top: 16px; }
+
+  @media(max-width:560px) {
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    .region-selector { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
+
   <div class="wrap">
-    <div class="themes" id="themes">
-      <button data-th="" class="on">🍞 크림</button>
-      <button data-th="mint">🌿 민트</button>
-      <button data-th="berry">🍓 베리</button>
-    </div>
-    <h1>🏘️ 우리 동네 <span class="a">인구 구조</span></h1>
+    <h1>🏘️ 우리 동네 <span style="color:#a5b4fc;">인구 구조</span> & <span style="color:#f472b6;">군집 분석</span></h1>
     <div class="under"></div>
-    <input id="q" list="regions" placeholder="동네 이름 입력 (예: 서울특별시 종로구)">
+
+    <!-- 지도 카드 -->
+    <div class="glass-panel">
+      <div style="font-weight:800; margin-bottom:10px;">🗺️ 전국 인구 분석 지도 (클릭하여 선택/비교)</div>
+      <div class="mctl">
+        <select id="metric">
+          <optgroup label="🧬 AI 인구 구조 군집 분석">
+            <option value="cluster" selected>✨ 인구 구조 유형 (4개 그룹 군집화)</option>
+          </optgroup>
+          <optgroup label="📊 개별 지표 보기">
+            <option value="65,100">고령화율 (65세 이상)</option>
+            <option value="0,14">유소년 비율 (0~14세)</option>
+            <option value="13,18">청소년 비율 (13~18세)</option>
+            <option value="14,14">만 14세 비율</option>
+            <option value="0,6">영유아 비율 (0~6세)</option>
+            <option value="0,0">0세 비율 (갓 태어난 아기)</option>
+            <option value="custom">✏️ 직접 입력</option>
+          </optgroup>
+        </select>
+        <span id="customAge" hidden>
+          만 <input id="ageLo" type="number" value="0" min="0" max="100">세 ~
+          <input id="ageHi" type="number" value="100" min="0" max="100">세
+        </span>
+      </div>
+      <div class="mapbox" id="mapbox">
+        <svg id="map"></svg>
+        <div class="lgd" id="lgdContainer"></div>
+        <div id="tip" hidden></div>
+      </div>
+      <div class="rank" id="rankTop"></div>
+      <div class="rank" id="rankLow"></div>
+    </div>
+
+    <!-- 지역 선택 패널 -->
+    <div class="region-selector">
+      <div class="select-box a">
+        <label>기준 지역 (A)</label>
+        <input id="qA" list="regions" placeholder="동네 선택 (예: 서울특별시 종로구)">
+      </div>
+      <div class="select-box b">
+        <label>비교 지역 (B)</label>
+        <input id="qB" list="regions" placeholder="비교할 동네 선택 (선택 사항)">
+      </div>
+    </div>
     <datalist id="regions"></datalist>
+
+    <!-- 요약 지표 카드 -->
     <div class="cards" id="cards"></div>
-    <div id="py"></div>
-    <p class="foot">데이터: 행정안전부 주민등록 인구(매월 자동 갱신)</p>
+
+    <!-- 군집 분석 결과 설명 카드 -->
+    <div class="cluster-info-card" id="clusterInfoCard"></div>
+
+    <!-- 인구 피라미드 그래프 -->
+    <div class="glass-panel">
+      <div id="py"></div>
+    </div>
+
+    <p class="foot">데이터 출처: 행정안전부 주민등록 인구 통계 | 머신러닝 k-means Clustering 적용</p>
   </div>
 
 <script>
-const 기본지역 = "서울특별시 종로구"; // ← 보고 싶은 지역으로 바꿔도 돼요
+let regA = "서울특별시 종로구";
+let regB = ""; 
+
 const DATA_URL = "https://raw.githubusercontent.com/greatsong/modudata/main/data/population_latest.csv";
+const MAP_URL = "https://raw.githubusercontent.com/greatsong/modudata/main/data/sigungu_pop.json";
 
 let HEADER = [], INDEX = {};
-const num = s => parseInt(String(s).replace(/[^0-9-]/g,''),10) || 0;   // 따옴표·천단위 쉼표 제거
-// 따옴표로 감싼 CSV 한 줄 파싱 (값 안에 쉼표가 있어 단순 split 불가)
-function parseCSV(line){const o=[];let c='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){c+='"';i++;}else q=!q;}else if(ch===','&&!q){o.push(c);c='';}else c+=ch;}o.push(c);return o;}
-const cleanName = s => s.replace(/\s*\(\d+\)\s*$/,'').replace(/\s+/g,' ').trim();  // "서울…종로구 (1111…)" → "서울…종로구"
+const num = s => parseInt(String(s).replace(/[^0-9-]/g,''), 10) || 0;
+function parseCSV(line){ const o=[]; let c='', q=false; for(let i=0; i<line.length; i++){ const ch=line[i]; if(ch==='"'){ if(q && line[i+1]==='"'){ c+='"'; i++; } else q=!q; } else if(ch===',' && !q){ o.push(c); c=''; } else c+=ch; } o.push(c); return o; }
+const cleanName = s => s.replace(/\s*\(\d+\)\s*$/,'').replace(/\s+/g,' ').trim();
+
+// 군집 정의 (4개 그룹)
+const CLUSTER_META = {
+  0: { name: "유소년/젊은 도시형", color: "#38bdf8", desc: "영유아 및 10~30대 비율이 높아 생기 있는 유소년/신도시 중심 지역" },
+  1: { name: "생산연령 집중형", color: "#818cf8", desc: "20~50대 경제활동 인구가 주를 이루는 주거 및 산업 중심 지역" },
+  2: { name: "중고령 혼합형", color: "#fb7185", desc: "고령화가 본격 진입하고 중장년 비율이 높은 일반 지방 도시 및 농촌 지역" },
+  3: { name: "초고령화 농어촌형", color: "#c084fc", desc: "65세 이상 어르신 비율이 약 30% 이상을 차지하는 고령화 진전 지역" }
+};
+
+let CLUSTER_ASSIGN = {}; // { 지역명: 군집번호 }
 
 function ageBySex(cells){
   const m = new Array(101).fill(0), f = new Array(101).fill(0);
-  for(let i=1;i<HEADER.length;i++){
-    const mm = HEADER[i].match(/_(\d+)세/); if(!mm) continue;   // 총인구수·연령구간 열은 건너뜀
+  for(let i=1; i<HEADER.length; i++){
+    const mm = HEADER[i].match(/_(\d+)세/); if(!mm) continue;
     const a = Math.min(100, +mm[1]);
-    if(HEADER[i].includes('_남_')) m[a]+=num(cells[i]);
-    else if(HEADER[i].includes('_여_')) f[a]+=num(cells[i]);    // _계_ 열은 무시(남+여만)
+    if(HEADER[i].includes('_남_')) m[a] += num(cells[i]);
+    else if(HEADER[i].includes('_여_')) f[a] += num(cells[i]);
   }
   return { m, f };
 }
-const rsum = (a,lo,hi)=>{ let s=0; for(let i=lo;i<=hi;i++) s+=a[i]; return s; };
+const rsum = (a, lo, hi) => { let s=0; for(let i=lo; i<=hi; i++) s+=a[i]; return s; };
 
-function drawPyramid(m, f){
-  const ages=Array.from({length:101},(_,i)=>i);   // 0~100세(100+) 1세 단위
-  const mx=Math.max(...m,...f,1);
-  const step=Math.max(500, Math.ceil(mx/4/500)*500), lim=Math.ceil(mx/step)*step;
-  const tv=[]; for(let v=-lim; v<=lim; v+=step) tv.push(v);
-  Plotly.react('py',[
-    {y:ages,x:m.map(v=>-v),name:'남자',type:'bar',orientation:'h',marker:{color:'#4C8DF6'},
-     customdata:m,hovertemplate:'%{y}세 · 남 %{customdata:,}명<extra></extra>'},
-    {y:ages,x:f,name:'여자',type:'bar',orientation:'h',marker:{color:'#F4789B'},
-     hovertemplate:'%{y}세 · 여 %{x:,}명<extra></extra>'}
-  ],{
-    barmode:'relative', bargap:0.15, height:560, margin:{l:46,r:14,t:6,b:28},
-    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
-    font:{family:'-apple-system,"Malgun Gothic",sans-serif',size:12,color:'#333'},
-    legend:{orientation:'h',x:0.5,xanchor:'center',y:1.03},
-    xaxis:{tickvals:tv,ticktext:tv.map(v=>Math.abs(v).toLocaleString()),zeroline:true,zerolinecolor:'#ccc',gridcolor:'rgba(0,0,0,.06)',fixedrange:true},
-    yaxis:{dtick:10,ticksuffix:'세',range:[-0.6,100.6],fixedrange:true}
-  },{displayModeBar:false,responsive:true});
+/* ───────── K-Means 군집화 알고리즘 구현 ───────── */
+function runClustering() {
+  const features = [];
+  const regionNames = [];
+
+  // 각 지역별 특성 벡터 생성 [유소년비율(0~14), 청년비율(15~39), 중년비율(40~64), 고령비율(65+)]
+  Object.keys(INDEX).forEach(name => {
+    const a = ageOf(name);
+    if (a && a.total > 0) {
+      const y = rsum(a.arr, 0, 14) / a.total;
+      const m1 = rsum(a.arr, 15, 39) / a.total;
+      const m2 = rsum(a.arr, 40, 64) / a.total;
+      const o = rsum(a.arr, 65, 100) / a.total;
+      features.push([y, m1, m2, o]);
+      regionNames.push(name);
+    }
+  });
+
+  const k = 4;
+  // 초기 중심점 (고령화 비율 기준 정렬 후 4분위 지점 선택)
+  const sortedIdx = features.map((f, i) => ({ i, old: f[3] })).sort((a,b)=>a.old-b.old);
+  let centroids = [
+    features[sortedIdx[Math.floor(sortedIdx.length * 0.1)].i],
+    features[sortedIdx[Math.floor(sortedIdx.length * 0.4)].i],
+    features[sortedIdx[Math.floor(sortedIdx.length * 0.7)].i],
+    features[sortedIdx[Math.floor(sortedIdx.length * 0.95)].i]
+  ];
+
+  let assignments = new Array(features.length).fill(0);
+  
+  // K-means 15회 반복 학습
+  for (let iter = 0; iter < 15; iter++) {
+    // 1. 할당 단계
+    for (let i = 0; i < features.length; i++) {
+      let minDist = Infinity;
+      let bestCluster = 0;
+      for (let c = 0; c < k; c++) {
+        // 유클리드 거리
+        const dist = Math.sqrt(features[i].reduce((sum, val, idx) => sum + Math.pow(val - centroids[c][idx], 2), 0));
+        if (dist < minDist) {
+          minDist = dist;
+          bestCluster = c;
+        }
+      }
+      assignments[i] = bestCluster;
+    }
+
+    // 2. 중심점 업데이트
+    const newCentroids = Array.from({length: k}, () => [0, 0, 0, 0]);
+    const counts = new Array(k).fill(0);
+    for (let i = 0; i < features.length; i++) {
+      const c = assignments[i];
+      counts[c]++;
+      for (let d = 0; d < 4; d++) newCentroids[c][d] += features[i][d];
+    }
+    for (let c = 0; c < k; c++) {
+      if (counts[c] > 0) {
+        for (let d = 0; d < 4; d++) newCentroids[c][d] /= counts[c];
+      }
+    }
+    centroids = newCentroids;
+  }
+
+  // 고령화 비율(centroids[][3]) 순서로 그룹 번호 재정렬 (0:가장젊음 ~ 3:가장고령)
+  const order = centroids.map((c, i) => ({ i, old: c[3] })).sort((a,b)=>a.old-b.old).map(x=>x.i);
+  const remap = {};
+  order.forEach((oldIdx, newIdx) => { remap[oldIdx] = newIdx; });
+
+  regionNames.forEach((n, idx) => {
+    CLUSTER_ASSIGN[n] = remap[assignments[idx]];
+  });
 }
 
-function show(name){
-  const cells = INDEX[name]; if(!cells) return;
-  const {m,f} = ageBySex(cells);
-  const mT = rsum(m,0,100), fT = rsum(f,0,100), total = mT+fT;
-  const old = rsum(m,65,100)+rsum(f,65,100), young = rsum(m,0,14)+rsum(f,0,14);
-  const pct = n => total ? (n/total*100).toFixed(1)+'%' : '-';
+// 인구 피라미드 차트 그리기
+function drawPyramid(){
+  const cellsA = INDEX[regA];
+  if(!cellsA) return;
+  const { m: mA, f: fA } = ageBySex(cellsA);
+  const ages = Array.from({length:101}, (_, i) => i);
+
+  const traces = [
+    {
+      y: ages, x: mA.map(v => -v), name: `${regA} (남)`, type: 'bar', orientation: 'h',
+      marker: { color: 'rgba(99, 102, 241, 0.85)' }, customdata: mA,
+      hovertemplate: '%{y}세 · 남 %{customdata:,}명<extra></extra>'
+    },
+    {
+      y: ages, x: fA, name: `${regA} (여)`, type: 'bar', orientation: 'h',
+      marker: { color: 'rgba(129, 140, 248, 0.85)' },
+      hovertemplate: '%{y}세 · 여 %{x:,}명<extra></extra>'
+    }
+  ];
+
+  const cellsB = INDEX[regB];
+  if (cellsB) {
+    const { m: mB, f: fB } = ageBySex(cellsB);
+    traces.push({
+      y: ages, x: mB.map(v => -v), name: `${regB} (남)`, type: 'scatter', mode: 'lines',
+      line: { color: '#f43f5e', width: 2.5 }, customdata: mB,
+      hovertemplate: '%{y}세 · 남 %{customdata:,}명<extra></extra>'
+    });
+    traces.push({
+      y: ages, x: fB, name: `${regB} (여)`, type: 'scatter', mode: 'lines',
+      line: { color: '#fb7185', width: 2.5 },
+      hovertemplate: '%{y}세 · 여 %{x:,}명<extra></extra>'
+    });
+  }
+
+  let allVals = [...mA, ...fA];
+  if(cellsB) { const { m: mB, f: fB } = ageBySex(cellsB); allVals.push(...mB, ...fB); }
+  const mx = Math.max(...allVals, 1);
+  const step = Math.max(500, Math.ceil(mx/4/500)*500);
+  const lim = Math.ceil(mx/step)*step;
+  const tv = []; for(let v = -lim; v <= lim; v += step) tv.push(v);
+
+  Plotly.react('py', traces, {
+    barmode: 'relative', bargap: 0.1, height: 480,
+    margin: { l: 45, r: 15, t: 10, b: 30 },
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { family: '-apple-system, sans-serif', size: 11, color: '#cbd5e1' },
+    legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.08, font: { color: '#f8fafc' } },
+    xaxis: {
+      tickvals: tv, ticktext: tv.map(v => Math.abs(v).toLocaleString()),
+      zeroline: true, zerolinecolor: 'rgba(255,255,255,0.3)', gridcolor: 'rgba(255,255,255,0.05)', fixedrange: true
+    },
+    yaxis: { dtick: 10, ticksuffix: '세', range: [-0.6, 100.6], fixedrange: true, gridcolor: 'rgba(255,255,255,0.05)' }
+  }, { displayModeBar: false, responsive: true });
+}
+
+function updateCards() {
+  const cellsA = INDEX[regA]; if(!cellsA) return;
+  const { m: mA, f: fA } = ageBySex(cellsA);
+  const mTA = rsum(mA, 0, 100), fTA = rsum(fA, 0, 100), totalA = mTA + fTA;
+  const oldA = rsum(mA, 65, 100) + rsum(fA, 65, 100);
+  const youngA = rsum(mA, 0, 14) + rsum(fA, 0, 14);
+  const pctA = n => totalA ? (n/totalA*100).toFixed(1)+'%' : '-';
+
+  const cellsB = INDEX[regB];
+  let totalB=0, mTB=0, fTB=0, oldB=0, youngB=0, pctB = () => '-';
+  if(cellsB) {
+    const { m: mB, f: fB } = ageBySex(cellsB);
+    mTB = rsum(mB, 0, 100); fTB = rsum(fB, 0, 100); totalB = mTB + fTB;
+    oldB = rsum(mB, 65, 100) + rsum(fB, 65, 100);
+    youngB = rsum(mB, 0, 14) + rsum(fB, 0, 14);
+    pctB = n => totalB ? (n/totalB*100).toFixed(1)+'%' : '-';
+  }
+
   document.getElementById('cards').innerHTML = `
-    <div class="card"><div class="k">총인구</div><div class="v">${total.toLocaleString()}</div></div>
-    <div class="card"><div class="k">남 / 여</div><div class="v" style="font-size:.92rem">${mT.toLocaleString()}<br>${fT.toLocaleString()}</div></div>
-    <div class="card"><div class="k">고령화율 65+</div><div class="v">${pct(old)}</div></div>
-    <div class="card"><div class="k">유소년 0-14</div><div class="v">${pct(young)}</div></div>`;
-  drawPyramid(m, f);
+    <div class="card">
+      <div class="k">총인구</div>
+      <div class="v-container">
+        <div class="val-a">${totalA.toLocaleString()}</div>
+        ${cellsB ? `<div class="val-b">${totalB.toLocaleString()}</div>` : ''}
+      </div>
+    </div>
+    <div class="card">
+      <div class="k">남 / 여</div>
+      <div class="v-container">
+        <div class="val-a" style="font-size:0.85rem">${mTA.toLocaleString()} / ${fTA.toLocaleString()}</div>
+        ${cellsB ? `<div class="val-b" style="font-size:0.8rem">${mTB.toLocaleString()} / ${fTB.toLocaleString()}</div>` : ''}
+      </div>
+    </div>
+    <div class="card">
+      <div class="k">고령화율 (65+)</div>
+      <div class="v-container">
+        <div class="val-a">${pctA(oldA)}</div>
+        ${cellsB ? `<div class="val-b">${pctB(oldB)}</div>` : ''}
+      </div>
+    </div>
+    <div class="card">
+      <div class="k">유소년 (0-14)</div>
+      <div class="v-container">
+        <div class="val-a">${pctA(youngA)}</div>
+        ${cellsB ? `<div class="val-b">${pctB(youngB)}</div>` : ''}
+      </div>
+    </div>`;
+
+  // 군집 정보 안내 업데이트
+  const cId = CLUSTER_ASSIGN[regA];
+  if (cId !== undefined) {
+    const meta = CLUSTER_META[cId];
+    // 동일 군집 내 무작위 다른 지역 6개 추천
+    const sameRegions = Object.keys(CLUSTER_ASSIGN)
+      .filter(n => CLUSTER_ASSIGN[n] === cId && n !== regA)
+      .slice(0, 7);
+
+    document.getElementById('clusterInfoCard').innerHTML = `
+      <span class="cluster-badge" style="background:${meta.color}; color:#0f172a;">
+        ${regA} ➔ Group ${cId + 1}. ${meta.name}
+      </span>
+      <div style="font-size:0.85rem; color:#cbd5e1; line-height:1.4;">${meta.desc}</div>
+      <div style="font-size:0.78rem; font-weight:700; margin-top:10px; color:#a5b4fc;">
+        📍 동일한 인구 구조 유형을 보이는 유사 지역:
+      </div>
+      <div class="cluster-same-list">
+        ${sameRegions.map(n => `<span class="cluster-same-chip" onclick="pickFromMap('${n}')">${n}</span>`).join('')}
+      </div>
+    `;
+  }
 }
 
-document.getElementById('themes').addEventListener('click', e=>{
-  const b = e.target.closest('button'); if(!b) return;
-  document.body.dataset.theme = b.dataset.th; localStorage.setItem('pop_theme', b.dataset.th);
-  document.querySelectorAll('.themes button').forEach(x=>x.classList.toggle('on', x===b));
-});
-const st = localStorage.getItem('pop_theme') || '';
-document.body.dataset.theme = st;
-document.querySelectorAll('.themes button').forEach(x=>x.classList.toggle('on', x.dataset.th===st));
+function show() {
+  updateCards();
+  drawPyramid();
+  highlightMapSelected();
+}
 
+/* ───────── 지도 파트 ───────── */
+const AGE = {}, VALS = {}, RANK = {};
+let MAPREG = [], NREG = 0;
+
+function ageOf(name){
+  if(AGE[name]) return AGE[name];
+  const cells = INDEX[name]; if(!cells) return null;
+  const {m,f} = ageBySex(cells);
+  const arr = m.map((v,i)=>v+f[i]);
+  return AGE[name] = { arr, total: rsum(arr,0,100) };
+}
+
+function metricRange(){
+  const sel = document.getElementById('metric').value;
+  if(sel === 'cluster') return null;
+  if(sel !== 'custom') return sel.split(',').map(Number);
+  const cl = v => Math.min(100, Math.max(0, parseInt(v,10)||0));
+  let lo = cl(document.getElementById('ageLo').value), hi = cl(document.getElementById('ageHi').value);
+  return lo<=hi ? [lo,hi] : [hi,lo];
+}
+
+const fmt = v => v.toFixed(v<10?2:1)+'%';
+const 시도약칭 = {'강원특별자치도':'강원','경기도':'경기','경상남도':'경남','경상북도':'경북','광주광역시':'광주','대구광역시':'대구','대전광역시':'대전','부산광역시':'부산','서울특별시':'서울','세종특별자치시':'세종','울산광역시':'울산','인천광역시':'인천','전라남도':'전남','전북특별자치도':'전북','제주특별자치도':'제주','충청남도':'충남','충청북도':'충북'};
+const 짧은이름 = n => { const [a,...r]=n.split(' '); const s=시도약칭[a]||a.slice(0,2); return r.length ? s+' '+r.join(' ') : s; };
+
+function buildMap(list){
+  const kx = Math.cos(36*Math.PI/180)*100, ky = 100;
+  const px = lon => lon*kx, py = lat => -lat*ky;
+  let x0=1e9, y0=1e9, x1=-1e9, y1=-1e9;
+  list.forEach(g=>g.p.forEach(poly=>poly.forEach(ring=>ring.forEach(pt=>{
+    const x=px(pt[0]), y=py(pt[1]);
+    if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+  }))));
+  
+  const svg = document.getElementById('map');
+  svg.setAttribute('viewBox', `${(x0-2).toFixed(1)} ${(y0-2).toFixed(1)} ${(x1-x0+4).toFixed(1)} ${(y1-y0+4).toFixed(1)}`);
+  
+  const dByName = new Map();
+  list.forEach(g=>{
+    let d='';
+    g.p.forEach(poly=>poly.forEach(ring=>{
+      d += 'M'+ring.map(pt=>px(pt[0]).toFixed(1)+' '+py(pt[1]).toFixed(1)).join('L')+'Z';
+    }));
+    dByName.set(g.n, (dByName.get(g.n)||'')+d);
+  });
+
+  dByName.forEach((d,n)=>{
+    const el = document.createElementNS('http://www.w3.org/2000/svg','path');
+    el.setAttribute('d', d);
+    el.setAttribute('data-name', n);
+    el.addEventListener('pointerenter', ()=>{ el.classList.add('hl'); svg.appendChild(el); });
+    el.addEventListener('pointermove', e=>showTip(e,n));
+    el.addEventListener('pointerleave', ()=>{ el.classList.remove('hl'); hideTip(); });
+    el.addEventListener('click', ()=>pickFromMap(n));
+    svg.appendChild(el);
+    MAPREG.push({n, el});
+  });
+}
+
+function paint(){
+  const metric = document.getElementById('metric').value;
+  const lgdEl = document.getElementById('lgdContainer');
+
+  if (metric === 'cluster') {
+    // 🧬 군집 보기 색상 적용
+    MAPREG.forEach(({n, el}) => {
+      const cId = CLUSTER_ASSIGN[n];
+      el.setAttribute('fill', cId !== undefined ? CLUSTER_META[cId].color : 'rgba(255,255,255,0.05)');
+    });
+
+    lgdEl.innerHTML = Object.keys(CLUSTER_META).map(id => `
+      <div class="cluster-legend-item">
+        <span class="cluster-dot" style="background:${CLUSTER_META[id].color}"></span>
+        <span>G${parseInt(id)+1}</span>
+      </div>
+    `).join('');
+
+    document.getElementById('rankTop').innerHTML = '🧬 머신러닝 k-means 군집 분석 적용 중';
+    document.getElementById('rankLow').innerHTML = '지도상의 4가지 색상은 유사한 연령 비율 구조를 지닌 그룹입니다.';
+  } else {
+    // 📊 수치 지표 색상 적용
+    const [lo, hi] = metricRange();
+    const vs = [];
+    MAPREG.forEach(({n})=>{
+      const a = ageOf(n);
+      const v = (a && a.total) ? rsum(a.arr,lo,hi)/a.total*100 : null;
+      VALS[n] = v; if(v!=null) vs.push(v);
+    });
+    const vMin = Math.min(...vs), vMax = Math.max(...vs);
+    const t2c = t => `rgb(${Math.round(49+(225-49)*t)},${Math.round(46+(29-46)*t)},${Math.round(129+(72-129)*t)})`;
+    
+    MAPREG.forEach(({n,el})=>{
+      const v = VALS[n];
+      el.setAttribute('fill', v==null ? 'rgba(255,255,255,0.05)' : t2c((v-vMin)/(vMax-vMin||1)));
+    });
+
+    lgdEl.innerHTML = `<span id="lgMin">${fmt(vMin)}</span><span class="bar"></span><span id="lgMax">${fmt(vMax)}</span>`;
+
+    const sorted = MAPREG.filter(({n})=>VALS[n]!=null).map(({n})=>n).sort((a,b)=>VALS[b]-VALS[a]);
+    NREG = sorted.length; sorted.forEach((n,i)=>RANK[n]=i+1);
+    
+    const btns = ns => ns.map(n=>`<button data-n="${n}">${짧은이름(n)} ${fmt(VALS[n])}</button>`).join('');
+    document.getElementById('rankTop').innerHTML = '🏆 상위 5 · '+btns(sorted.slice(0,5));
+    document.getElementById('rankLow').innerHTML = '🐢 하위 5 · '+btns(sorted.slice(-5).reverse());
+  }
+  
+  highlightMapSelected();
+}
+
+function highlightMapSelected() {
+  MAPREG.forEach(({n, el}) => {
+    el.classList.remove('selected-a', 'selected-b');
+    if (n === regA) el.classList.add('selected-a');
+    if (n === regB) el.classList.add('selected-b');
+  });
+}
+
+const tip = document.getElementById('tip');
+function showTip(e,n){
+  const metric = document.getElementById('metric').value;
+  const a = ageOf(n);
+  const cId = CLUSTER_ASSIGN[n];
+  const cMeta = cId !== undefined ? CLUSTER_META[cId] : null;
+
+  let txt = `<b>${n}</b><br>총인구 ${a?a.total.toLocaleString():'-'}명<br>`;
+  if (metric === 'cluster') {
+    txt += cMeta ? `그룹: <b style="color:${cMeta.color}">${cMeta.name}</b>` : '-';
+  } else {
+    const v = VALS[n];
+    txt += (v==null?'-':`${fmt(v)} · 전국 ${NREG}곳 중 <b>${RANK[n]}위</b>`);
+  }
+
+  tip.innerHTML = txt;
+  tip.hidden = false;
+  const r = document.getElementById('mapbox').getBoundingClientRect();
+  tip.style.left = Math.max(0, Math.min(e.clientX-r.left+14, r.width-tip.offsetWidth-2))+'px';
+  tip.style.top  = Math.max(0, e.clientY-r.top-tip.offsetHeight-10)+'px';
+}
+function hideTip(){ tip.hidden = true; }
+
+function pickFromMap(n){
+  if(!INDEX[n]) return;
+  if (regA === n) {
+    regB = "";
+  } else if (!regB && regA !== n) {
+    regB = n;
+  } else {
+    regA = n;
+    regB = "";
+  }
+  document.getElementById('qA').value = regA;
+  document.getElementById('qB').value = regB;
+  show();
+}
+
+/* 이벤트 리스너 세팅 */
+document.getElementById('qA').addEventListener('input', (e)=>{
+  if(INDEX[e.target.value]) { regA = e.target.value; show(); }
+});
+document.getElementById('qB').addEventListener('input', (e)=>{
+  if(INDEX[e.target.value] || e.target.value === "") { regB = e.target.value; show(); }
+});
+
+document.getElementById('metric').addEventListener('change', ()=>{
+  document.getElementById('customAge').hidden = document.getElementById('metric').value!=='custom';
+  paint();
+});
+['ageLo','ageHi'].forEach(id=>document.getElementById(id).addEventListener('input', paint));
+['rankTop','rankLow'].forEach(id=>document.getElementById(id).addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(b) pickFromMap(b.dataset.n);
+}));
+
+/* 초기화 데이터 로드 */
 (async ()=>{
-  const buf = await (await fetch(DATA_URL)).arrayBuffer();
-  const text = new TextDecoder('euc-kr').decode(buf);   // 행안부 원본은 cp949 인코딩
+  const [buf, mapData] = await Promise.all([
+    fetch(DATA_URL).then(r=>r.arrayBuffer()),
+    fetch(MAP_URL).then(r=>r.json()).catch(()=>fetch("sigungu_pop.json").then(r=>r.json()))
+  ]);
+  const text = new TextDecoder('euc-kr').decode(buf);
   const lines = text.trim().split(/\r?\n/);
   HEADER = parseCSV(lines[0]);
+  
   const dl = document.getElementById('regions');
   lines.slice(1).forEach(line=>{
     const cells = parseCSV(line); const name = cleanName(cells[0]);
     INDEX[name] = cells;
     const o = document.createElement('option'); o.value = name; dl.appendChild(o);
   });
-  const q = document.getElementById('q'); q.value = 기본지역;
-  q.addEventListener('input', ()=>{ if(INDEX[q.value]) show(q.value); });
-  show(기본지역);
+  
+  // 데이터 파싱 후 군집화 수행
+  runClustering();
+
+  document.getElementById('qA').value = regA;
+  document.getElementById('qB').value = regB;
+  
+  buildMap(mapData.sigungu);
+  paint();
+  show();
 })().catch(e=>document.getElementById('cards').textContent = '⚠️ ' + e.message);
 </script>
 </body>
